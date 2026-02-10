@@ -1,0 +1,15 @@
+[Unit]
+Description=TheDaily Streamlit App
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/thedaily
+EnvironmentFile=/etc/thedaily.env
+ExecStart=/home/ubuntu/thedaily/.venv/bin/streamlit run app.py --server.address=127.0.0.1 --server.port=8501
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

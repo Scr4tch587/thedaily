@@ -1,0 +1,11 @@
+[Unit]
+Description=TheDaily Daily Pipeline Job
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/thedaily
+EnvironmentFile=/etc/thedaily.env
+ExecStart=/home/ubuntu/thedaily/.venv/bin/python run_pipeline.py

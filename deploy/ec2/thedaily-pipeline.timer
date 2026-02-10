@@ -1,0 +1,10 @@
+[Unit]
+Description=Run TheDaily pipeline once per day
+
+[Timer]
+OnCalendar=*-*-* 12:00:00
+Persistent=true
+Unit=thedaily-pipeline.service
+
+[Install]
+WantedBy=timers.target

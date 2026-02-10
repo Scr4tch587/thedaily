@@ -209,3 +209,5 @@ __marimo__/
 # Project data and logs
 data/
 logs/
+
+thedailylogin.pem
