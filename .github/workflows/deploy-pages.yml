@@ -43,6 +43,7 @@ jobs:
 
   deploy-pages:
     needs: deploy-ec2
+    if: always()
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
