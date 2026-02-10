@@ -72,7 +72,19 @@ Open: `http://<EC2_PUBLIC_IP_OR_DNS>/`
 ### Enable Pages in GitHub
 - Repo Settings -> Pages -> Source: **GitHub Actions**.
 
-The workflow file `.github/workflows/deploy-pages.yml` auto-deploys `docs/` on pushes to `main`.
+The workflow file `.github/workflows/deploy-pages.yml` now does both:
+- deploy app updates to EC2 over SSH
+- deploy `docs/` to GitHub Pages
+
+### Add repository secrets for EC2 CD
+In GitHub -> Settings -> Secrets and variables -> Actions, add:
+
+- `EC2_HOST`: your EC2 public DNS or IP
+- `EC2_USER`: usually `ubuntu`
+- `EC2_SSH_KEY`: private key content (PEM) used to SSH into EC2
+- `EC2_PORT`: usually `22`
+
+The SSH key must match the public key authorized on the instance.
 
 ### Update landing page link
 Edit `docs/index.html` and replace:
