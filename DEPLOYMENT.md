@@ -7,7 +7,7 @@ This project uses two deployment targets:
 ## 1) EC2 deploy (Ubuntu)
 
 ### Create instance
-- AMI: Ubuntu 22.04+
+- AMI: Ubuntu 24.04 LTS (recommended). Ubuntu 22.04 also works with the bootstrap script.
 - Size: `t3.medium` or larger
 - Security group inbound:
   - `22` from your IP
@@ -24,6 +24,15 @@ cd /home/ubuntu
 git clone https://github.com/<YOUR_USER>/<YOUR_REPO>.git thedaily
 cd thedaily
 chmod +x deploy/ec2/bootstrap_ec2.sh
+./deploy/ec2/bootstrap_ec2.sh https://github.com/<YOUR_USER>/<YOUR_REPO>.git
+```
+
+If you previously ran bootstrap on Python 3.10 and saw `requires a different Python: 3.10... not in '>=3.11'`, run:
+
+```bash
+cd /home/ubuntu/thedaily
+git pull
+rm -rf .venv
 ./deploy/ec2/bootstrap_ec2.sh https://github.com/<YOUR_USER>/<YOUR_REPO>.git
 ```
 

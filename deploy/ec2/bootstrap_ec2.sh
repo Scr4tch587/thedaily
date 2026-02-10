@@ -11,7 +11,14 @@ if [ -z "$REPO_URL" ]; then
 fi
 
 sudo apt-get update -y
-sudo apt-get install -y git curl python3 python3-venv python3-pip nginx
+sudo apt-get install -y git curl nginx software-properties-common
+
+if ! command -v python3.11 >/dev/null 2>&1; then
+  sudo add-apt-repository -y ppa:deadsnakes/ppa
+  sudo apt-get update -y
+fi
+
+sudo apt-get install -y python3.11 python3.11-venv python3.11-distutils
 
 if [ ! -d "$APP_DIR" ]; then
   git clone "$REPO_URL" "$APP_DIR"
@@ -19,7 +26,7 @@ else
   git -C "$APP_DIR" pull --ff-only
 fi
 
-python3 -m venv "$APP_DIR/.venv"
+python3.11 -m venv "$APP_DIR/.venv"
 "$APP_DIR/.venv/bin/pip" install --upgrade pip
 "$APP_DIR/.venv/bin/pip" install -e "$APP_DIR"
 
