@@ -86,6 +86,16 @@ In GitHub -> Settings -> Secrets and variables -> Actions, add:
 
 The SSH key must match the public key authorized on the instance.
 
+### If workflow shows `dial tcp ... i/o timeout`
+This means GitHub runner could not reach your EC2 SSH port.
+
+Check:
+- EC2 security group allows inbound `22/tcp` from the internet (or from your approved CIDRs)
+- EC2 has a public IP / reachable DNS
+- NACL/VPC rules are not blocking SSH
+
+If you keep SSH limited to your own IP only, GitHub-hosted runners will fail to connect.
+
 ### Update landing page link
 Edit `docs/index.html` and replace:
 
