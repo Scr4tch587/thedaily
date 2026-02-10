@@ -36,9 +36,9 @@ HN_TOPIC_QUERIES = [
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = "gpt-4o-mini"
 
-# ── Embeddings ─────────────────────────────────────────────────────────
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-EMBEDDING_DIM = 384
+# ── Embeddings (OpenAI) ────────────────────────────────────────────────
+EMBEDDING_MODEL = "text-embedding-3-small"
+EMBEDDING_DIM = 1536
 
 # ── FAISS ──────────────────────────────────────────────────────────────
 FAISS_INDEX_PATH = PROCESSED_DIR / "faiss.index"

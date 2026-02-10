@@ -4,6 +4,7 @@ import json
 import logging
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from config.settings import (
     BREAKTHROUGH_SCORE_THRESHOLD,
@@ -47,35 +48,82 @@ def detect_breakthroughs(posts: list[dict], summaries: list[str], topics: list[l
     return breakthroughs
 
 
-def build_comment_engagement(posts: list[dict]) -> dict:
-    """Comment count buckets for engagement analysis."""
-    buckets = {"0-10": 0, "11-50": 0, "51-100": 0, "101-250": 0, "250+": 0}
+def build_top_stories(posts: list[dict], summaries: list[str]) -> list[dict]:
+    """Top 5 stories by score."""
+    indexed = sorted(enumerate(posts), key=lambda x: -x[1]["score"])[:5]
+    return [
+        {
+            "title": posts[i]["title"],
+            "score": posts[i]["score"],
+            "num_comments": posts[i].get("num_comments", 0),
+            "hn_url": posts[i]["hn_url"],
+            "summary": summaries[i] if i < len(summaries) else "",
+        }
+        for i, _ in indexed
+    ]
+
+
+def build_hot_discussions(posts: list[dict]) -> list[dict]:
+    """Stories with highest comment-to-score ratio (min 20 comments to filter noise)."""
+    candidates = [p for p in posts if p.get("num_comments", 0) >= 20 and p.get("score", 0) > 0]
+    candidates.sort(key=lambda p: p["num_comments"] / max(p["score"], 1), reverse=True)
+    return [
+        {
+            "title": p["title"],
+            "score": p["score"],
+            "num_comments": p["num_comments"],
+            "ratio": round(p["num_comments"] / max(p["score"], 1), 1),
+            "hn_url": p["hn_url"],
+        }
+        for p in candidates[:5]
+    ]
+
+
+def build_domain_leaderboard(posts: list[dict]) -> list[dict]:
+    """Top domains by link count."""
+    domains: Counter = Counter()
     for p in posts:
-        n = p.get("num_comments", 0)
-        if n <= 10:
-            buckets["0-10"] += 1
-        elif n <= 50:
-            buckets["11-50"] += 1
-        elif n <= 100:
-            buckets["51-100"] += 1
-        elif n <= 250:
-            buckets["101-250"] += 1
+        url = p.get("url", "")
+        if url:
+            try:
+                host = urlparse(url).netloc
+                # Clean up www. prefix
+                if host.startswith("www."):
+                    host = host[4:]
+                if host:
+                    domains[host] += 1
+            except Exception:
+                pass
+
+    return [{"domain": domain, "count": count} for domain, count in domains.most_common(10)]
+
+
+def build_story_type_breakdown(posts: list[dict]) -> dict:
+    """Count of Show HN / Ask HN / regular stories."""
+    types: dict[str, int] = {"Show HN": 0, "Ask HN": 0, "Launch HN": 0, "Stories": 0}
+    for p in posts:
+        title = p.get("title", "")
+        if title.startswith("Show HN"):
+            types["Show HN"] += 1
+        elif title.startswith("Ask HN"):
+            types["Ask HN"] += 1
+        elif title.startswith("Launch HN"):
+            types["Launch HN"] += 1
         else:
-            buckets["250+"] += 1
-    return buckets
+            types["Stories"] += 1
+
+    # Remove zero entries
+    return {k: v for k, v in types.items() if v > 0}
 
 
-def build_score_distribution(posts: list[dict]) -> list[int]:
-    """Return list of scores for histogram."""
-    return [p["score"] for p in posts]
-
-
-def generate_charts_data(posts: list[dict], topics: list[list[str]]) -> dict:
+def generate_charts_data(posts: list[dict], topics: list[list[str]], summaries: list[str] | None = None) -> dict:
     """Produce the charts_data.json content."""
     charts = {
         "trending_topics": extract_trending_topics(posts, topics),
-        "comment_engagement": build_comment_engagement(posts),
-        "score_distribution": build_score_distribution(posts),
+        "top_stories": build_top_stories(posts, summaries or []),
+        "hot_discussions": build_hot_discussions(posts),
+        "domain_leaderboard": build_domain_leaderboard(posts),
+        "story_type_breakdown": build_story_type_breakdown(posts),
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -94,7 +142,6 @@ def generate_daily_digest(
     trending: dict,
 ) -> dict:
     """Produce the daily_digest.json content."""
-    # Top 10 stories by score
     indexed = sorted(enumerate(posts), key=lambda x: -x[1]["score"])[:10]
     top_posts = []
     for i, post in indexed:

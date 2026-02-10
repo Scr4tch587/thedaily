@@ -5,21 +5,21 @@ import logging
 
 import faiss
 import numpy as np
-from sentence_transformers import SentenceTransformer
+from openai import OpenAI
 
-from config.settings import EMBEDDING_MODEL, FAISS_INDEX_PATH, FAISS_TOP_K, SUMMARIES_PATH
+from config.settings import EMBEDDING_MODEL, FAISS_INDEX_PATH, FAISS_TOP_K, OPENAI_API_KEY, SUMMARIES_PATH
 
 logger = logging.getLogger(__name__)
 
-_model: SentenceTransformer | None = None
+_client: OpenAI | None = None
 _index: faiss.Index | None = None
 _metadata: list[dict] | None = None
 
 
 def _load_resources():
-    global _model, _index, _metadata
-    if _model is None:
-        _model = SentenceTransformer(EMBEDDING_MODEL)
+    global _client, _index, _metadata
+    if _client is None:
+        _client = OpenAI(api_key=OPENAI_API_KEY)
     if _index is None:
         _index = faiss.read_index(str(FAISS_INDEX_PATH))
     if _metadata is None:
@@ -32,7 +32,10 @@ def retrieve(state: dict) -> dict:
     _load_resources()
 
     query = state["query"]
-    query_embedding = _model.encode([query], normalize_embeddings=True).astype(np.float32)
+
+    # Embed query via OpenAI
+    resp = _client.embeddings.create(model=EMBEDDING_MODEL, input=[query])
+    query_embedding = np.array([resp.data[0].embedding], dtype=np.float32)
 
     scores, indices = _index.search(query_embedding, FAISS_TOP_K)
 

@@ -1,5 +1,6 @@
-"""Streamlit entry point — The Daily: Tech Breakthrough Radar."""
+"""Streamlit entry point — The Daily: Tech Radar."""
 
+import json
 from datetime import datetime, timezone
 
 import streamlit as st
@@ -8,7 +9,7 @@ st.set_page_config(
     page_title="The Daily",
     page_icon="🗞️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # ── NYT-inspired global CSS ───────────────────────────────────────────
@@ -21,10 +22,18 @@ st.markdown("""
     background-color: #FAFAF8;
 }
 
+/* ── Hide sidebar completely ── */
+[data-testid="stSidebar"] {
+    display: none;
+}
+[data-testid="stSidebarCollapsedControl"] {
+    display: none;
+}
+
 /* ── Masthead ── */
 .masthead {
     text-align: center;
-    padding: 1.2rem 0 0.6rem 0;
+    padding: 1.5rem 0 0.8rem 0;
     border-bottom: 2px solid #000;
     margin-bottom: 0;
 }
@@ -39,7 +48,7 @@ st.markdown("""
 }
 .masthead-title {
     font-family: 'Playfair Display', 'Georgia', serif;
-    font-size: 2.8rem;
+    font-size: 3.2rem;
     font-weight: 900;
     color: #000;
     letter-spacing: -0.5px;
@@ -54,17 +63,21 @@ st.markdown("""
     color: #888;
     letter-spacing: 2.5px;
     text-transform: uppercase;
-    margin-top: 0.3rem;
+    margin-top: 0.35rem;
+}
+.masthead-stats {
+    font-family: 'Libre Franklin', sans-serif;
+    font-size: 0.62rem;
+    font-weight: 400;
+    color: #AAA;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 0.5rem;
 }
 .thin-rule {
     border: none;
     border-top: 1px solid #E0E0E0;
     margin: 0.5rem 0;
-}
-.thick-rule {
-    border: none;
-    border-top: 2px solid #000;
-    margin: 0.8rem 0 0.5rem 0;
 }
 
 /* ── Section headers ── */
@@ -87,14 +100,6 @@ st.markdown("""
     line-height: 1.25;
     margin: 0.3rem 0 0.2rem 0;
 }
-.headline-md {
-    font-family: 'Playfair Display', 'Georgia', serif;
-    font-size: 1.15rem;
-    font-weight: 700;
-    color: #121212;
-    line-height: 1.3;
-    margin: 0.2rem 0;
-}
 .headline-sm {
     font-family: 'Playfair Display', 'Georgia', serif;
     font-size: 0.95rem;
@@ -116,26 +121,6 @@ st.markdown("""
     color: #999;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-}
-.meta-text a {
-    color: #999;
-    text-decoration: none;
-}
-.meta-text a:hover {
-    color: #000;
-}
-
-/* ── Sidebar NYT styling ── */
-[data-testid="stSidebar"] {
-    background-color: #FAFAF8;
-    border-right: 1px solid #E0E0E0;
-}
-[data-testid="stSidebar"] .stMarkdown p,
-[data-testid="stSidebar"] .stMarkdown li {
-    font-family: 'Lora', 'Georgia', serif;
-    font-size: 0.85rem;
-    color: #333;
-    line-height: 1.5;
 }
 
 /* ── Chat styling ── */
@@ -162,53 +147,6 @@ st.markdown("""
     font-size: 0.9rem;
 }
 
-/* ── Tabs ── */
-.stTabs [data-baseweb="tab-list"] {
-    border-bottom: 1px solid #E0E0E0;
-    gap: 0;
-}
-.stTabs [data-baseweb="tab"] {
-    font-family: 'Libre Franklin', sans-serif;
-    font-size: 0.72rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #666;
-    padding: 0.5rem 1.2rem;
-}
-.stTabs [aria-selected="true"] {
-    color: #000 !important;
-    border-bottom: 2px solid #000 !important;
-}
-
-/* ── Metrics ── */
-[data-testid="stMetric"] {
-    background-color: transparent;
-    border: 1px solid #E0E0E0;
-    padding: 0.6rem;
-}
-[data-testid="stMetricLabel"] p {
-    font-family: 'Libre Franklin', sans-serif;
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #888;
-}
-[data-testid="stMetricValue"] {
-    font-family: 'Playfair Display', 'Georgia', serif;
-    color: #121212;
-}
-
-/* ── Expander ── */
-.streamlit-expanderHeader {
-    font-family: 'Libre Franklin', sans-serif;
-    font-size: 0.75rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    color: #333;
-}
-
 /* ── Links ── */
 a {
     color: #326891 !important;
@@ -225,36 +163,42 @@ header[data-testid="stHeader"] {
 </style>
 """, unsafe_allow_html=True)
 
+# ── Load story count for masthead ─────────────────────────────────────
+from config.settings import DAILY_DIGEST_PATH
+
+stories_analyzed = ""
+if DAILY_DIGEST_PATH.exists():
+    try:
+        with open(DAILY_DIGEST_PATH) as f:
+            digest = json.load(f)
+        stories_analyzed = f"{digest.get('total_posts', 0)} stories analyzed"
+    except (json.JSONDecodeError, OSError):
+        pass
+
 # ── Masthead ──────────────────────────────────────────────────────────
 today = datetime.now(timezone.utc).strftime("%A, %B %d, %Y")
 st.markdown(f"""
 <div class="masthead">
     <div class="masthead-date">{today}</div>
     <div class="masthead-title">The Daily</div>
-    <div class="masthead-subtitle">Tech Breakthrough Radar</div>
+    <div class="masthead-subtitle">Tech Radar</div>
+    <div class="masthead-stats">{stories_analyzed}</div>
 </div>
 """, unsafe_allow_html=True)
 
-# ── Imports after page config ─────────────────────────────────────────
-from ui.sidebar import render_sidebar
+# ── Imports ───────────────────────────────────────────────────────────
 from ui.chat import render_chat
 from ui.charts import render_charts
-
-# Sidebar
-render_sidebar()
 
 # Main area
 st.markdown('<hr class="thin-rule">', unsafe_allow_html=True)
 
-# Two-column NYT-style layout: chat (main) + charts (aside)
 col_main, col_aside = st.columns([3, 2], gap="large")
 
 with col_main:
-    st.markdown('<div class="section-label">Intelligence Briefing</div>', unsafe_allow_html=True)
-    st.markdown('<hr class="thin-rule">', unsafe_allow_html=True)
     render_chat()
 
 with col_aside:
-    st.markdown('<div class="section-label">Data & Trends</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-label">Trends</div>', unsafe_allow_html=True)
     st.markdown('<hr class="thin-rule">', unsafe_allow_html=True)
     render_charts()

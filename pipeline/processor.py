@@ -1,11 +1,11 @@
-"""Ray-parallel NLP processing — summarization, embeddings, topic classification."""
+"""Parallel NLP processing — summarization, embeddings, topic classification."""
 
 import logging
+import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
-import ray
 from openai import OpenAI
-from sentence_transformers import SentenceTransformer
 
 from config.settings import EMBEDDING_MODEL, OPENAI_API_KEY, OPENAI_MODEL, TOPIC_KEYWORDS
 
@@ -32,8 +32,7 @@ def classify_topic(text: str) -> list[str]:
     return topics if topics else ["General"]
 
 
-@ray.remote
-def summarize_batch(posts: list[dict]) -> list[str]:
+def _summarize_batch(posts: list[dict]) -> list[str]:
     """Summarize a batch of posts using OpenAI."""
     client = OpenAI(api_key=OPENAI_API_KEY)
     summaries = []
@@ -61,41 +60,60 @@ def summarize_batch(posts: list[dict]) -> list[str]:
     return summaries
 
 
-@ray.remote
-def embed_batch(posts: list[dict]) -> np.ndarray:
-    """Generate embeddings for a batch of posts using sentence-transformers."""
-    model = SentenceTransformer(EMBEDDING_MODEL)
-    texts = [_post_text(post) for post in posts]
-    embeddings = model.encode(texts, show_progress_bar=False, normalize_embeddings=True)
-    return np.array(embeddings, dtype=np.float32)
+def _embed_all(posts: list[dict]) -> np.ndarray:
+    """Generate embeddings for all posts using OpenAI embeddings API."""
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    texts = [_post_text(post)[:8000] for post in posts]
+
+    # OpenAI supports batching up to 2048 inputs
+    all_embeddings = []
+    batch_size = 100
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i : i + batch_size]
+        resp = client.embeddings.create(model=EMBEDDING_MODEL, input=batch)
+        batch_embs = [item.embedding for item in resp.data]
+        all_embeddings.extend(batch_embs)
+        logger.info("Embedded %d/%d texts", min(i + batch_size, len(texts)), len(texts))
+
+    return np.array(all_embeddings, dtype=np.float32)
 
 
-@ray.remote
-def classify_batch(posts: list[dict]) -> list[list[str]]:
-    """Classify topics for a batch of posts."""
+def _classify_all(posts: list[dict]) -> list[list[str]]:
+    """Classify topics for all posts."""
     return [classify_topic(_post_text(post)) for post in posts]
 
 
 def process_posts(posts: list[dict]) -> tuple[list[str], np.ndarray, list[list[str]]]:
-    """Run all processing in parallel with Ray and return (summaries, embeddings, topics)."""
-    # Split into batches for parallelism
-    batch_size = max(1, len(posts) // 4)
+    """Run all processing and return (summaries, embeddings, topics).
+
+    - Summarization: batched across threads (IO-bound OpenAI calls)
+    - Embeddings: batched OpenAI API calls
+    - Classification: single pass (fast keyword matching)
+    """
+    # Split summaries into batches for thread-parallel OpenAI calls
+    num_workers = min(4, os.cpu_count() or 2)
+    batch_size = max(1, len(posts) // num_workers)
     batches = [posts[i : i + batch_size] for i in range(0, len(posts), batch_size)]
 
-    # Launch all tasks in parallel
-    summary_futures = [summarize_batch.remote(batch) for batch in batches]
-    embed_futures = [embed_batch.remote(batch) for batch in batches]
-    classify_futures = [classify_batch.remote(batch) for batch in batches]
+    # Summarize in parallel threads (IO-bound)
+    logger.info("Summarizing %d stories across %d threads...", len(posts), len(batches))
+    summaries: list[str] = []
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
+        futures = {executor.submit(_summarize_batch, batch): i for i, batch in enumerate(batches)}
+        results: dict[int, list[str]] = {}
+        for future in as_completed(futures):
+            idx = futures[future]
+            results[idx] = future.result()
+        for i in range(len(batches)):
+            summaries.extend(results[i])
 
-    # Gather results
-    summary_results = ray.get(summary_futures)
-    embed_results = ray.get(embed_futures)
-    classify_results = ray.get(classify_futures)
+    # Embeddings via OpenAI API
+    logger.info("Generating embeddings via OpenAI...")
+    embeddings = _embed_all(posts)
 
-    # Flatten
-    summaries = [s for batch in summary_results for s in batch]
-    embeddings = np.vstack(embed_results)
-    topics = [t for batch in classify_results for t in batch]
+    # Classification (fast, no parallelism needed)
+    logger.info("Classifying topics...")
+    topics = _classify_all(posts)
 
     logger.info("Processed %d stories: %d summaries, %s embeddings, %d topic lists",
                 len(posts), len(summaries), embeddings.shape, len(topics))
