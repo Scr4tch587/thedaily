@@ -1,0 +1,24 @@
+[project]
+name = "thedaily"
+version = "0.1.0"
+description = "Tech Breakthrough Radar Chatbot — daily Hacker News digest with LangGraph agents"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31",
+    "ray>=2.9",
+    "langchain-openai>=0.1",
+    "langgraph>=0.2",
+    "langchain-core>=0.2",
+    "faiss-cpu>=1.7",
+    "sentence-transformers>=2.2",
+    "streamlit>=1.30",
+    "plotly>=5.18",
+    "pandas>=2.1",
+    "python-dotenv>=1.0",
+    "numpy>=1.26",
+    "openai>=1.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends._legacy:_Backend"
